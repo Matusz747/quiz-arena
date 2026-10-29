@@ -1,0 +1,547 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz Arena</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    color: white;
+    background: linear-gradient(135deg, #111827, #312e81, #581c87);
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 850px;
+    margin: auto;
+}
+
+header, .panel {
+    background: rgba(15, 23, 42, 0.94);
+    padding: 22px;
+    border-radius: 18px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 25px #0004;
+}
+
+h1 { text-align: center; color: #c4b5fd; }
+.subtitle { text-align: center; color: #cbd5e1; }
+
+input, select, button {
+    padding: 12px;
+    border-radius: 9px;
+    border: none;
+    font-size: 16px;
+}
+
+input, select {
+    width: 100%;
+    margin: 8px 0;
+    background: #f1f5f9;
+    color: #111827;
+}
+
+button {
+    background: #8b5cf6;
+    color: white;
+    cursor: pointer;
+    margin: 5px 0;
+}
+
+button:hover { background: #7c3aed; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.primary { width: 100%; margin-top: 10px; }
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.stat {
+    background: #312e81;
+    padding: 15px 5px;
+    text-align: center;
+    border-radius: 12px;
+}
+
+.stat strong {
+    display: block;
+    font-size: 22px;
+    margin-bottom: 5px;
+}
+
+#progress {
+    height: 12px;
+    background: #475569;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+#bar {
+    height: 100%;
+    width: 0;
+    background: #a78bfa;
+    transition: width 0.3s;
+}
+
+.topic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 10px;
+}
+
+.topic {
+    min-height: 85px;
+    font-weight: bold;
+    font-size: 16px;
+    border: 2px solid transparent;
+}
+
+.topic.active { border-color: white; background: #6d28d9; }
+
+.answer {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: #334155;
+    margin: 10px 0;
+}
+
+.answer.correct { background: #15803d; }
+.answer.wrong { background: #b91c1c; }
+
+#feedback { font-weight: bold; min-height: 24px; }
+.small { color: #cbd5e1; font-size: 14px; }
+
+.hidden { display: none; }
+
+footer { text-align: center; color: #cbd5e1; padding: 10px; }
+
+@media (max-width: 450px) {
+    body { padding: 10px; }
+    .stats { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<header>
+    <h1>🎮 QUIZ ARENA</h1>
+    <p class="subtitle">Odpowiadaj, zdobywaj XP i zostań legendą!</p>
+</header>
+
+<section class="panel" id="profile">
+    <h2>👤 Twój gracz</h2>
+    <label for="nickname">Wpisz swój nick:</label>
+    <input id="nickname" maxlength="20" placeholder="Np. SuperGracz123">
+    <button class="primary" onclick="saveNick()">Zapisz nick</button>
+    <p class="small">Wpisz nick, aby rozpocząć. Nie podawaj prawdziwego nazwiska ani hasła.</p>
+</section>
+
+<section class="panel">
+    <h2>🏆 Twoje postępy</h2>
+    <p>Gracz: <strong id="playerName">Gość</strong></p>
+    <div class="stats">
+        <div class="stat">
+            <strong id="level">1</strong>
+            Level
+        </div>
+        <div class="stat">
+            <strong id="xp">0</strong>
+            XP
+        </div>
+        <div class="stat">
+            <strong id="rank">NOOB</strong>
+            Ranga
+        </div>
+    </div>
+    <p id="nextLevel">Do następnego levelu: 100 XP</p>
+    <div id="progress"><div id="bar"></div></div>
+</section>
+
+<section class="panel">
+    <h2>🧠 Wybierz temat quizu</h2>
+    <div class="topic-grid" id="topics"></div>
+</section>
+
+<section class="panel hidden" id="quizPanel">
+    <p id="quizTopic" class="small"></p>
+    <h2 id="question"></h2>
+    <div id="answers"></div>
+    <p id="feedback" aria-live="polite"></p>
+    <button id="nextButton" class="primary hidden" onclick="nextQuestion()">
+        Następne pytanie ➜
+    </button>
+    <button id="finishButton" class="primary hidden" onclick="finishQuiz()">
+        Zakończ quiz
+    </button>
+</section>
+
+<section class="panel">
+    <h2>🥇 Ranking na tym urządzeniu</h2>
+    <p class="small">
+        Ranking pokazuje wyniki zapisane w tej przeglądarce.
+        Nie jest jeszcze wspólnym rankingiem internetowym.
+    </p>
+    <ol id="leaderboard"></ol>
+</section>
+
+<footer>Quiz Arena © 2026 · Powodzenia! 🚀</footer>
+
+</div>
+
+<script>
+const quizzes = {
+    "🌍 Świat": [
+        { q: "Jaki jest największy ocean na Ziemi?",
+          a: ["Atlantycki", "Spokojny", "Indyjski", "Arktyczny"], c: 1 },
+        { q: "Na jakiej planecie żyjemy?",
+          a: ["Mars", "Wenus", "Ziemia", "Jowisz"], c: 2 },
+        { q: "Jaki jest najwyższy szczyt świata nad poziomem morza?",
+          a: ["Mount Everest", "Kilimandżaro", "Mont Blanc", "K2"], c: 0 },
+        { q: "Ile kontynentów wyróżnia się w popularnym podziale na siedem?",
+          a: ["5", "6", "7", "9"], c: 2 }
+    ],
+
+    "⚽ Sport": [
+        { q: "Ilu zawodników jednej drużyny gra na boisku w piłce nożnej?",
+          a: ["5", "7", "11", "12"], c: 2 },
+        { q: "W jakim sporcie wykonuje się wsady do kosza?",
+          a: ["Tenis", "Koszykówka", "Siatkówka", "Rugby"], c: 1 },
+        { q: "Ile kół znajduje się w symbolu olimpijskim?",
+          a: ["4", "5", "6", "7"], c: 1 },
+        { q: "Czym odbija się piłkę w tenisie stołowym?",
+          a: ["Kijem", "Rakietką", "Rękawicą", "Nogą"], c: 1 }
+    ],
+
+    "🎮 Gry": [
+        { q: "W której grze buduje się z bloków?",
+          a: ["Minecraft", "Tetris", "FIFA", "Pac-Man"], c: 0 },
+        { q: "Jak nazywa się popularna konsola firmy Nintendo?",
+          a: ["PlayStation", "Xbox", "Switch", "Steam"], c: 2 },
+        { q: "Co oznacza skrót NPC w grach?",
+          a: ["Postać niezależna od gracza", "Nowy poziom", "Tryb sieciowy", "Punkt zapisu"], c: 0 },
+        { q: "Jaki kolor ma zwykle klasyczny jeż Sonic?",
+          a: ["Zielony", "Niebieski", "Czerwony", "Żółty"], c: 1 }
+    ],
+
+    "🐾 Zwierzęta": [
+        { q: "Jakie jest największe zwierzę na świecie?",
+          a: ["Słoń afrykański", "Płetwal błękitny", "Żyrafa", "Rekin biały"], c: 1 },
+        { q: "Ile nóg ma pająk?",
+          a: ["6", "8", "10", "12"], c: 1 },
+        { q: "Który z tych ssaków składa jaja?",
+          a: ["Pies", "Delfin", "Dziobak", "Koń"], c: 2 },
+        { q: "Gdzie naturalnie żyją pingwiny cesarskie?",
+          a: ["Antarktyda", "Sahara", "Amazonia", "Alpy"], c: 0 }
+    ],
+
+    "📜 Historia": [
+        { q: "W którym roku Polska przyjęła chrzest?",
+          a: ["966", "1410", "1025", "1791"], c: 0 },
+        { q: "Kto był pierwszym człowiekiem na Księżycu?",
+          a: ["Jurij Gagarin", "Neil Armstrong", "Albert Einstein", "Mikołaj Kopernik"], c: 1 },
+        { q: "Jak nazywał się starożytny lud kojarzony z piramidami w Gizie?",
+          a: ["Wikingowie", "Egipcjanie", "Rzymianie", "Sumerowie"], c: 1 },
+        { q: "W jakim kraju znajduje się Koloseum?",
+          a: ["Grecja", "Egipt", "Włochy", "Hiszpania"], c: 2 }
+    ],
+
+    "🔬 Nauka": [
+        { q: "Jaki gaz jest niezbędny człowiekowi do oddychania?",
+          a: ["Hel", "Tlen", "Neon", "Wodór"], c: 1 },
+        { q: "Ile wynosi 7 × 8?",
+          a: ["54", "56", "64", "48"], c: 1 },
+        { q: "Która gwiazda znajduje się najbliżej Ziemi?",
+          a: ["Syriusz", "Słońce", "Polarna", "Wega"], c: 1 },
+        { q: "W jakim stanie skupienia jest lód w zwykłych warunkach?",
+          a: ["Gazowym", "Ciekłym", "Stałym", "Plazmowym"], c: 2 }
+    ],
+
+    "🗺️ Geografia": [
+        { q: "Jaka jest stolica Polski?",
+          a: ["Kraków", "Gdańsk", "Warszawa", "Poznań"], c: 2 },
+        { q: "Która rzeka przepływa przez Warszawę?",
+          a: ["Wisła", "Odra", "Warta", "Bug"], c: 0 },
+        { q: "Na którym kontynencie leży Brazylia?",
+          a: ["Afryka", "Ameryka Południowa", "Europa", "Azja"], c: 1 },
+        { q: "Jaka jest stolica Francji?",
+          a: ["Rzym", "Madryt", "Paryż", "Lizbona"], c: 2 }
+    ],
+
+    "🎬 Filmy": [
+        { q: "Jak nazywa się szkoła magii w Harrym Potterze?",
+          a: ["Hogwart", "Narnia", "Krypton", "Avalon"], c: 0 },
+        { q: "Jakiego koloru jest Shrek?",
+          a: ["Niebieski", "Zielony", "Fioletowy", "Pomarańczowy"], c: 1 },
+        { q: "Jak nazywa się kowboj z Toy Story?",
+          a: ["Buzz", "Nemo", "Woody", "Simba"], c: 2 },
+        { q: "W jakim uniwersum występuje Darth Vader?",
+          a: ["Star Wars", "Harry Potter", "Shrek", "Toy Story"], c: 0 }
+    ]
+};
+
+const ranks = [
+    { xp: 0, name: "NOOB" },
+    { xp: 100, name: "NOWICJUSZ" },
+    { xp: 250, name: "ODKRYWCA" },
+    { xp: 500, name: "PRO" },
+    { xp: 800, name: "EKSPERT" },
+    { xp: 1200, name: "MISTRZ" },
+    { xp: 2000, name: "LEGENDA" }
+];
+
+let players = {};
+let currentNick = "";
+let currentTopic = "";
+let questions = [];
+let questionIndex = 0;
+let quizPoints = 0;
+let answered = false;
+
+try {
+    players = JSON.parse(localStorage.getItem("quizArenaPlayers") || "{}");
+    if (!players || typeof players !== "object" || Array.isArray(players)) {
+        players = {};
+    }
+} catch {
+    players = {};
+}
+
+function savePlayers() {
+    try {
+        localStorage.setItem("quizArenaPlayers", JSON.stringify(players));
+    } catch {
+        alert("Nie udało się zapisać wyniku w przeglądarce.");
+    }
+}
+
+function normalizeNick(nick) {
+    return nick.trim().toLowerCase();
+}
+
+function saveNick() {
+    const nick = document.getElementById("nickname").value.trim();
+
+    if (nick.length < 2) {
+        alert("Nick musi mieć przynajmniej 2 znaki.");
+        return;
+    }
+
+    if (nick.length > 20) {
+        alert("Nick może mieć maksymalnie 20 znaków.");
+        return;
+    }
+
+    const key = normalizeNick(nick);
+
+    if (!players[key]) {
+        players[key] = { nick: nick, xp: 0, quizzes: 0 };
+    }
+
+    currentNick = key;
+    savePlayers();
+    updateProfile();
+    renderLeaderboard();
+
+    document.getElementById("nickname").value = players[key].nick;
+    document.getElementById("profile").classList.add("hidden");
+}
+
+function getLevel(xp) {
+    return Math.floor(xp / 100) + 1;
+}
+
+function getRank(xp) {
+    let rank = ranks[0].name;
+
+    for (const r of ranks) {
+        if (xp >= r.xp) rank = r.name;
+    }
+
+    return rank;
+}
+
+function updateProfile() {
+    if (!currentNick || !players[currentNick]) return;
+
+    const player = players[currentNick];
+    const xp = player.xp;
+
+    document.getElementById("playerName").textContent = player.nick;
+    document.getElementById("level").textContent = getLevel(xp);
+    document.getElementById("xp").textContent = xp;
+    document.getElementById("rank").textContent = getRank(xp);
+
+    const currentBase = Math.floor(xp / 100) * 100;
+    const nextBase = currentBase + 100;
+    const progress = xp - currentBase;
+
+    document.getElementById("nextLevel").textContent =
+        "Do następnego levelu: " + (nextBase - xp) + " XP";
+
+    document.getElementById("bar").style.width = progress + "%";
+}
+
+function renderTopics() {
+    const container = document.getElementById("topics");
+    container.innerHTML = "";
+
+    for (const topic of Object.keys(quizzes)) {
+        const button = document.createElement("button");
+        button.className = "topic";
+        button.textContent = topic;
+        button.onclick = () => startQuiz(topic);
+        container.appendChild(button);
+    }
+}
+
+function startQuiz(topic) {
+    if (!currentNick) {
+        alert("Najpierw wpisz i zapisz swój nick!");
+        document.getElementById("profile").classList.remove("hidden");
+        document.getElementById("nickname").focus();
+        return;
+    }
+
+    currentTopic = topic;
+    questions = [...quizzes[topic]].sort(() => Math.random() - 0.5);
+    questionIndex = 0;
+    quizPoints = 0;
+
+    document.getElementById("quizPanel").classList.remove("hidden");
+
+    document.querySelectorAll(".topic").forEach(button => {
+        button.classList.toggle("active", button.textContent === topic);
+    });
+
+    showQuestion();
+    document.getElementById("quizPanel").scrollIntoView({ behavior: "smooth" });
+}
+
+function showQuestion() {
+    answered = false;
+    const question = questions[questionIndex];
+
+    document.getElementById("quizTopic").textContent =
+        currentTopic + " · Pytanie " + (questionIndex + 1) +
+        " z " + questions.length;
+
+    document.getElementById("question").textContent = question.q;
+    document.getElementById("feedback").textContent = "";
+    document.getElementById("answers").innerHTML = "";
+    document.getElementById("nextButton").classList.add("hidden");
+    document.getElementById("finishButton").classList.add("hidden");
+
+    question.a.forEach((answer, index) => {
+        const button = document.createElement("button");
+        button.className = "answer";
+        button.textContent = answer;
+        button.onclick = () => checkAnswer(index, button);
+        document.getElementById("answers").appendChild(button);
+    });
+}
+
+function checkAnswer(index, button) {
+    if (answered) return;
+    answered = true;
+
+    const question = questions[questionIndex];
+    const buttons = document.querySelectorAll(".answer");
+
+    buttons.forEach((b, i) => {
+        b.disabled = true;
+        if (i === question.c) b.classList.add("correct");
+    });
+
+    if (index === question.c) {
+        quizPoints += 10;
+        button.classList.add("correct");
+        document.getElementById("feedback").textContent =
+            "✅ Dobra odpowiedź! +10 XP";
+    } else {
+        button.classList.add("wrong");
+        document.getElementById("feedback").textContent =
+            "❌ Niestety! Poprawna odpowiedź: " + question.a[question.c];
+    }
+
+    if (questionIndex < questions.length - 1) {
+        document.getElementById("nextButton").classList.remove("hidden");
+    } else {
+        document.getElementById("finishButton").classList.remove("hidden");
+    }
+}
+
+function nextQuestion() {
+    if (!answered) return;
+    questionIndex++;
+    showQuestion();
+}
+
+function finishQuiz() {
+    if (!answered) return;
+
+    const player = players[currentNick];
+    const oldLevel = getLevel(player.xp);
+
+    player.xp += quizPoints;
+    player.quizzes += 1;
+
+    savePlayers();
+    updateProfile();
+    renderLeaderboard();
+
+    const newLevel = getLevel(player.xp);
+
+    document.getElementById("question").textContent =
+        "🎉 Quiz zakończony! Zdobywasz " + quizPoints + " XP!";
+
+    document.getElementById("answers").innerHTML = "";
+    document.getElementById("feedback").textContent =
+        oldLevel < newLevel
+        ? "🚀 Awans! Twój nowy level to " + newLevel + "!"
+        : "Twoja ranga: " + getRank(player.xp);
+
+    document.getElementById("nextButton").classList.add("hidden");
+    document.getElementById("finishButton").classList.add("hidden");
+}
+
+function renderLeaderboard() {
+    const list = document.getElementById("leaderboard");
+    list.innerHTML = "";
+
+    const ranking = Object.values(players)
+        .sort((a, b) => b.xp - a.xp)
+        .slice(0, 10);
+
+    if (ranking.length === 0) {
+        list.textContent = "Brak wyników. Zagraj jako pierwszy!";
+        return;
+    }
+
+    ranking.forEach((player, index) => {
+        const item = document.createElement("li");
+        item.textContent = player.nick + " — " + player.xp +
+            " XP · Level " + getLevel(player.xp) +
+            " · " + getRank(player.xp);
+        list.appendChild(item);
+    });
+}
+
+renderTopics();
+renderLeaderboard();
+</script>
+</body>
+</html>
